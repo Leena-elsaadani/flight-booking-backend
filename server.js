@@ -27,3 +27,6 @@ app.listen(PORT, () =>
 );
 const flightRoutes = require("./routes/flightRoutes");
 app.use("/api/flights", flightRoutes);
+
+const bookingRoutes = require("./routes/bookingRoutes");
+app.use("/api/bookings", bookingRoutes);
