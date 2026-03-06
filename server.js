@@ -30,3 +30,13 @@ app.use("/api/flights", flightRoutes);
 
 const bookingRoutes = require("./routes/bookingRoutes");
 app.use("/api/bookings", bookingRoutes);
+
+const errorHandler = require("./middleware/errorMiddleware");
+
+// 404 handler (route not found)
+app.use((req, res, next) => {
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
+// Global error handler
+app.use(errorHandler);
