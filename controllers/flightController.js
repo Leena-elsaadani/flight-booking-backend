@@ -55,3 +55,21 @@ exports.deleteFlight = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+exports.searchFlights = async (req, res) => {
+  try {
+    const { from, to, date } = req.query; // get query params
+
+    // Build dynamic filter
+    let filter = {};
+    if (from) filter.from = from;
+    if (to) filter.to = to;
+    if (date) filter.date = new Date(date); // convert to Date
+
+    const flights = await Flight.find(filter);
+
+    res.json({ success: true, data: flights });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
