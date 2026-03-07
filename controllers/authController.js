@@ -1,149 +1,81 @@
-const User = require("../models/User");
+// controllers/authController.js
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-/*
-REGISTER
-*/
-const sendEmail = require("../utils/sendEmail");
-
+// REGISTER
 exports.register = async (req, res) => {
   try {
-    const { Name, Email, Password } = req.body;
+    const { name, email, password } = req.body;
 
-    // 1️ Check if user exists
-    const userExists = await User.findOne({ Email });
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: "User already exists",
-      });
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: "All fields are required" });
     }
 
-    // 2️ Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(Password, salt);
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: "User already exists" });
+    }
 
-    // 3️ Generate 6-digit verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4️ Create user with verification code
     const user = await User.create({
-      Name,
-      Email,
-      Password: hashedPassword,
-      verificationCode,
-      verificationCodeExpires,
+      name,
+      email,
+      password: hashedPassword,
+      isVerified: true // set true for testing login, remove if using email verification
     });
 
-    // 5 Send verification email
-    await sendEmail(
-      Email,
-      "Flight Booking Email Verification",
-      `Hello ${Name},\n\nYour verification code is: ${verificationCode}\n\nThis code will expire in 10 minutes.`
-    );
-
-    // 6️ Response
     res.status(201).json({
       success: true,
-      message: "User registered successfully. Please check your email to verify your account.",
-      data: {
-        Name: user.Name,
-        Email: user.Email,
-      },
+      message: "User registered successfully",
+      data: { id: user._id, name: user.name, email: user.email }
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/*
-LOGIN
-*/
-exports.login = async (req, res) => {
-
-  try {
-
-    const { Email, Password } = req.body;
-
-    const user = await User.findOne({ Email });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid credentials"
-      });
-    }
-
-    const isMatch = await bcrypt.compare(Password, user.Password);
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid credentials"
-      });
-    }
-
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
-    res.json({
-      success: true,
-      message: "Login successful",
-      token
-    });
-
-  } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-
-  }
-  
-  
-
-};
-exports.verifyEmail = async (req, res) => {
-  try {
-    const { Email, verificationCode } = req.body;
-
-    const user = await User.findOne({ Email });
-
-    if (!user) {
-      return res.status(400).json({ success: false, message: "User not found" });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({ success: false, message: "User already verified" });
-    }
-
-    if (user.verificationCode !== verificationCode) {
-      return res.status(400).json({ success: false, message: "Invalid verification code" });
-    }
-
-    if (user.verificationCodeExpires < Date.now()) {
-      return res.status(400).json({ success: false, message: "Verification code expired" });
-    }
-
-    // Mark verified
-    user.isVerified = true;
-    user.verificationCode = undefined;
-    user.verificationCodeExpires = undefined;
-
-    await user.save();
-
-    res.json({ success: true, message: "Email verified successfully" });
-
-  } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// LOGIN
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: "Email and password required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Invalid credentials" });
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(400).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Optional: generate JWT
+    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: {
+        user: { id: user._id, name: user.name, email: user.email },
+        token
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// VERIFY EMAIL (optional)
+exports.verifyEmail = async (req, res) => {
+  const { email, code } = req.body;
+  // Add your verification logic if you use email codes
+  res.status(200).json({ success: true, message: "Email verified" });
 };
