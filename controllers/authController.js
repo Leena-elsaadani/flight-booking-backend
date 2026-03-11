@@ -3,37 +3,60 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+const sendEmail = require("../utils/sendEmail");
+
 // REGISTER
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: "All fields are required" });
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required"
+      });
     }
 
     const existingUser = await User.findOne({ email });
+
     if (existingUser) {
-      return res.status(400).json({ success: false, message: "User already exists" });
+      return res.status(400).json({
+        success: false,
+        message: "User already exists"
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
-      isVerified: true // set true for testing login, remove if using email verification
+      verificationCode,
+      verificationCodeExpires: Date.now() + 10 * 60 * 1000 // 10 minutes
     });
+
+    // Send email to Mailtrap
+    await sendEmail(
+      email,
+      "Verify your Flight Booking account",
+      `Your verification code is: ${verificationCode}`
+    );
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
-      data: { id: user._id, name: user.name, email: user.email }
+      message: "User registered. Check your email for verification code."
     });
+
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
